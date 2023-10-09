@@ -1,0 +1,2 @@
+package,version,PII,file_sys_access,file_process_creation,network_access,cryptographic_functionality,data_encoding,dynamic_code_generation,package_installation,geolocation,minified_code,no_content,longest_line,num_of_files,has_license,label
+is-odd,3.0.1,0,0,0,0,0,0,0,0,0,0,0,103,54,1,benign

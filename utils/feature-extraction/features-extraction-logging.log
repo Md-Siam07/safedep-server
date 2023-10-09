@@ -1,0 +1,45 @@
+INFO:root:start func: extract_features
+INFO:root:malicious?: False
+INFO:root:start func: search_PII
+INFO:root:start func: search_file_sys_access
+INFO:root:start func: search_file_process_creation
+INFO:root:start func: search_network_access_data
+INFO:root:start func: search_crypto_data
+INFO:root:start func: search_encoded_data
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:package_name: is-odd@3.0.1
+INFO:root:start func: search_location
+INFO:root:directory_path: ../reproducer
+INFO:root:start func: search_minified_code
+INFO:root:avg_entropy: 4.899034194103067
+INFO:root:std_dev_entropy: 0.10209072369535867
+INFO:root:is_minified: 0
+INFO:root:start func: extract_is_has_no_content
+INFO:root:start func: longest_line_in_the_package
+INFO:root:start func: num_of_files_in_the_package
+INFO:root:start func: is_contain_license
+INFO:root:start func: search_PII
+INFO:root:start func: search_file_sys_access
+INFO:root:start func: search_file_process_creation
+INFO:root:start func: search_network_access_data
+INFO:root:start func: search_crypto_data
+INFO:root:start func: search_encoded_data
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:start func: search_PII
+INFO:root:start func: search_file_sys_access
+INFO:root:start func: search_file_process_creation
+INFO:root:start func: search_network_access_data
+INFO:root:start func: search_crypto_data
+INFO:root:start func: search_encoded_data
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:start func: search_PII
+INFO:root:start func: search_file_sys_access
+INFO:root:start func: search_file_process_creation
+INFO:root:start func: search_network_access_data
+INFO:root:start func: search_crypto_data
+INFO:root:start func: search_encoded_data
+INFO:root:start func: search_dynamic_code_generation
+INFO:root:start func: search_dynamic_code_generation
