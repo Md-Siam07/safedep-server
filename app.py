@@ -22,20 +22,23 @@ def post():
         print(data)
 
         # # Process the received JSON object (data) here if needed
-        # packages = data['packages']
-        # for package in packages:
-        #     print(package)
-        #     # Call the reproduce-package.sh script using subprocess
-        #     cmd = ['./utils/reproducer/reproduce-package.sh',
-        #            package, '.', 'node_modules']
-        #     print(cmd)
-        #     result = subprocess.run(
-        #         cmd)
+        packages = data['packages']
+        for package in packages:
+            print(package)
+            pkgName = package.split(':')[0]
+            pkgVersion = package.split(':')[1]
+            print(pkgName, pkgVersion)
+            # Call the reproduce-package.sh script using subprocess
+            cmd = ['./utils/reproducer/reproduce-package.sh',
+                   pkgName, pkgVersion, '.', 'node_modules']
+            print(cmd)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True)
 
-        #     print(cmd)
-        #     print(result.returncode)
-        #     print(result.stdout)
-        #     print(result.stderr)
+            print(cmd)
+            print(result.returncode)
+            print(result.stdout)
+            print(result.stderr)
 
         # Return the received JSON object as a JSON response
 
