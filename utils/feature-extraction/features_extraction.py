@@ -450,12 +450,12 @@ def extract_features(root_dir: str, malicious: bool) -> None:
     csv_file = 'dataset-validation.csv'
     # decide whether to write the data in append mode or write mode based on the input malicious flag
     method = 'a' if malicious else "w"
-
+    print(package_features)
     # call the write_dict_to_csv function to write the package_features dictionary to the CSV file
     write_dict_to_csv(dict_data=package_features,
                       csv_file=csv_file, headers=headers, method=method)
 
 
 if __name__ == '__main__':
-    benign_path = '../reproducer/packages/benign'
+    benign_path = '../../benign/'
     extract_features(benign_path, malicious=False)

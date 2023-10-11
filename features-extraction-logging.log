@@ -6,26 +6,16 @@ INFO:root:start func: search_file_process_creation
 INFO:root:start func: search_network_access_data
 INFO:root:start func: search_crypto_data
 INFO:root:start func: search_encoded_data
-INFO:root:keyword found!
-The keyword that was found is: qs
 INFO:root:start func: search_dynamic_code_generation
 INFO:root:start func: search_dynamic_code_generation
 INFO:root:package_name: normalize-git-url@3.2.2
 INFO:root:start func: search_location
-INFO:root:directory_path: ../../benign/normalize-git-url@3.2.
+INFO:root:directory_path: ./benign/normalize-git-url@3.2.
 INFO:root:start func: search_minified_code
 INFO:root:start func: extract_is_has_no_content
 INFO:root:start func: longest_line_in_the_package
 INFO:root:start func: num_of_files_in_the_package
 INFO:root:start func: is_contain_license
-INFO:root:start func: search_PII
-INFO:root:start func: search_file_sys_access
-INFO:root:start func: search_file_process_creation
-INFO:root:start func: search_network_access_data
-INFO:root:start func: search_crypto_data
-INFO:root:start func: search_encoded_data
-INFO:root:start func: search_dynamic_code_generation
-INFO:root:start func: search_dynamic_code_generation
 INFO:root:start func: search_PII
 INFO:root:start func: search_file_sys_access
 INFO:root:start func: search_file_process_creation

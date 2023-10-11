@@ -1,36 +1,24 @@
-from flask import Flask, request, jsonify
-import subprocess
-import os
-import numpy as np
-import pandas as pd
+
 from typing import Literal
 from features_utils import bitwise_operation, general_search, parse_file, extract_package_details, write_dict_to_csv, write_each_package_and_version_to_csv_and_create_dir, calculate_entropy, find_longest_line_in_the_file, search_substring_in_package
 import logging
 import math
-import joblib
-import hashlib
+import os
 
-is_PII = 0
-is_file_sys_access = 0
-is_process_creation = 0
-is_network_access = 0
-is_crypto_functionality = 0
-is_data_encoding = 0
-is_dynamic_code_generation = 0
-is_package_installation = 0
-is_geolocation = 0
-is_minified_code = 0
-is_has_no_content = 0
-longest_line = 0
-num_of_files = 0
-has_license = 0
+LOGֹ_FORMAT = "%(levelname)s, time: %(asctime)s , line: %(lineno)d- %(message)s "
+# create and configure logger
+logging.basicConfig(
+    filename="features-extraction-logging.log", level=logging.INFO, filemode="w"
+)
+logger = logging.getLogger()
+
 
 def search_PII(root_node) -> Literal[1, 0]:
     """
     (1) Access to personally-identifying information (PII): creditcard numbers, passwords, and cookies
      """
     logging.info("start func: search_PII")
-    # print('root node search pii: ',root_node)
+
     keywords = ['screenshot', ['keypress', 'POST'],
                 'creditcard', 'cookies', 'passwords', 'appData']
     return general_search(root_node, keywords)
@@ -343,224 +331,132 @@ def does_contain_license(directory_path: str) -> int:
 
     return 0
 
-def predict(dataDict):
-    print('predicting')
-    print(dataDict)
-    # return dataDict
-    # return jsonify(dataDict), 200
-    return jsonify(dataDict), 200
 
-app = Flask(__name__)
+def extract_features(root_dir: str, malicious: bool) -> None:
+    """
+    This function is used to traverse a given directory and extract features of each javascript file in it.
+    The extracted features are saved in a dictionary named `package_features` 
+    in the format of `{package_name: [feature_1, feature_2, ..., feature_n]}`.
 
-# target_folder = "./node_modules/normalize-git-url"
+    Args:
+    - root_dir (str): The path of the root directory to traverse.
+    - malicious (bool): Indicates whether the files in the directory are malicious or benign.
 
-def extract_feature(directory, target_folder, package_name, package_version, level):
-    global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
+    Returns:
+    None. The function saves the extracted features in a csv file.
+
+    """
+    logging.info("start func: extract_features")
+    logging.info(f'malicious?: {malicious}')
+
     package_features = {}  # {package_name:[f1, f2, ..., fn]}
     visited_packages = set()  # the set will contain the packages name that were traversed
-    NUM_OF_FEATURES_INCLUDE = 17
-    
-    for root, dirs, files in os.walk(directory):
-        print("Root:", root, " level: ", level, 'files: ', files, 'target_folder: ', target_folder)
-        # print("Dirs:", dirs)
-        # print("Files:", files)
-        
-        if root == target_folder:
-            
-            # Process the files or perform actions in the target folder
-            for file in files:
-                print('file: ', file)
-                if (not file.endswith('.js') and not file.endswith('.json')) or file.endswith('.min.js'):
-                    continue
-                file_path = os.path.join(root, file)
-                # print('file_path: ', file_path)
-                
-                if package_name not in package_features:
-                    # if not, initialize a list of NUM_OF_FEATURES_INCLUDE elements with value 0
-                    # print('not init')
-                    init_lst = [0] * NUM_OF_FEATURES_INCLUDE
-                    package_features[package_name] = init_lst
-                
-                name, version = package_name, package_version
-                is_PII = max(is_PII,search_PII(parse_file(file_path))) 
-                is_file_sys_access = max(is_file_sys_access ,search_file_sys_access(
-                parse_file(file_path)))  # 3
-                is_process_creation = max(is_process_creation, search_file_process_creation(
-                    parse_file(file_path)))  # 4
-                is_network_access = max(is_network_access, search_network_access(
-                    parse_file(file_path)))  # 5
-                is_crypto_functionality = max(is_crypto_functionality, search_cryptographic_functionality(
-                    parse_file(file_path)))  # 6
-                is_data_encoding = max(is_data_encoding, search_data_encoding(parse_file(file_path)))   # 7
-                is_dynamic_code_generation = max(is_dynamic_code_generation, search_dynamic_code_generation(
-                    parse_file(file_path)))   # 8
-                is_package_installation = max(is_package_installation, search_package_installation(
-                    parse_file(file_path)))   # 9
-                print('etodur')
-                # print('visited packages: ', visited_packages)
-                # check if the package was already processed
-                if package_name not in visited_packages:
-                    logging.info(f'package_name: {package_name}')
-                    logging.debug(f"{package_name} was not visit yet")
-                    index = root.find(package_name)
-                    print('index: ', index)
-                    logging.debug(f"dirname[:index]: {root[:index]}")
-                    print('root[:index]: ', root[:index])
-                    is_geolocation = max(is_geolocation,search_geolocation(root[:index]))  # 10
-                    is_minified_code = max(is_minified_code, search_minified_code(root[:index]))  # 11
-                    is_has_no_content = search_packages_with_no_content(
-                        root[:index])  # 12
-                    print('majhe')
-                    longest_line = longest_line_in_the_package(
-                        root[:index])  # 13
-                    # print('\n\n\nreturned longest_line: ', longest_line, '\n\n\n\n')
-                    num_of_files = num_of_files_in_the_package(
-                        root[:index])  # 14
-                    has_license = does_contain_license(root[:index])  # 15
-                    visited_packages.add(package_name)
-                    print('shesh')
-                else:
-                    logging.debug(f"package_features: {package_features}")
-                    is_geolocation = package_features[package_name][10]
-                    is_minified_code = package_features[package_name][11]
-                    is_has_no_content = package_features[package_name][12]
-                    longest_line = package_features[package_name][13]
-                    num_of_files = package_features[package_name][14]
-                    has_license = package_features[package_name][15]
-                if(dirs.__len__() > 0 and level < 1):
-                    # print('dirs calling inside: ', level, root ,dirs)
-                    for dir in dirs:
-                        extract_feature(os.path.join(root, dir), os.path.join(root, dir), package_name, package_version, level+1)
+    NUM_OF_FEATURES_INCLUDE = 17  # number of features include name, version and label
+    # print('extracting features')
+    for dirname, _, files in os.walk(root_dir):
+        path_lst = dirname.split(os.path.sep)
+        packages_type = "malicious" if malicious else "benign"
+        package_index = path_lst.index(packages_type) + 1
+        for filename in files:
+            if not filename.endswith(".js") and not filename.endswith(".json"):
+                continue
+            file_path = os.path.join(dirname, filename)
+            package_name = path_lst[package_index]
 
-                label = 'Unknown'  # 16
-                # create a new list of the current package's features
-                new_inner_lst = [name, version, is_PII, is_file_sys_access, is_process_creation,
-                                is_network_access, is_crypto_functionality, is_data_encoding,
-                                is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code,
-                                is_has_no_content, longest_line, num_of_files, has_license, label]
-                
-                # print('new_inner_lst: ', new_inner_lst)
-                # get the old feature list for the current package name
-                old_inner_lst = package_features[package_name]
+            logging.debug('================================================')
+            logging.debug(f"File path: {file_path}")
+            logging.debug(f"Package name: {package_name}")
+            logging.debug(f"filename: {filename}")
 
-                logging.debug(f'new_inner_lst: {new_inner_lst[2:-7]}')
-                logging.debug(f'old_inner_lst: {old_inner_lst[2:-7]}')
-                # perform the bitwise operation between the new and old feature lists
-                updated_inner_lst = bitwise_operation(
-                    new_inner_lst[2:-7], old_inner_lst[2:-7], '|')
-                logging.debug(f'updated_inner_lst: {updated_inner_lst}')
+            # check if the current package name already exists in the package_features dictionary
+            if package_name not in package_features:
+                # if not, initialize a list of NUM_OF_FEATURES_INCLUDE elements with value 0
+                # print('not init')
+                init_lst = [0] * NUM_OF_FEATURES_INCLUDE
+                package_features[package_name] = init_lst
 
-                pre_list = [name, version]
-                past_list = [is_geolocation, is_minified_code, is_has_no_content,
-                            longest_line, num_of_files, has_license, label]
+            name, version = extract_package_details(package_name)  # 0, 1
+            is_PII = search_PII(parse_file(file_path))  # 2
+            is_file_sys_access = search_file_sys_access(
+                parse_file(file_path))  # 3
+            is_process_creation = search_file_process_creation(
+                parse_file(file_path))  # 4
+            is_network_access = search_network_access(
+                parse_file(file_path))  # 5
+            is_crypto_functionality = search_cryptographic_functionality(
+                parse_file(file_path))  # 6
+            is_data_encoding = search_data_encoding(parse_file(file_path))  # 7
+            is_dynamic_code_generation = search_dynamic_code_generation(
+                parse_file(file_path))  # 8
+            is_package_installation = search_package_installation(
+                parse_file(file_path))  # 9
+            # check if the package was already processed
+            if package_name not in visited_packages:
+                print('not in packages')
+                logging.info(f'package_name: {package_name}')
+                logging.debug(f"{package_name} was not visit yet")
+                index = dirname.find("/package")
+                logging.debug(f"dirname[:index]: {dirname[:index]}")
+                is_geolocation = search_geolocation(dirname[:index])  # 10
+                is_minified_code = search_minified_code(dirname[:index])  # 11
+                is_has_no_content = search_packages_with_no_content(
+                    dirname[:index])  # 12
+                longest_line = longest_line_in_the_package(
+                    dirname[:index])  # 13
+                # print('\n\n\nreturned longest_line: ', longest_line, '\n\n\n\n')
+                num_of_files = num_of_files_in_the_package(
+                    dirname[:index])  # 14
+                has_license = does_contain_license(dirname[:index])  # 15
+                visited_packages.add(package_name)
+            else:
+                logging.debug(f"package_features: {package_features}")
+                is_geolocation = package_features[package_name][10]
+                is_minified_code = package_features[package_name][11]
+                is_has_no_content = package_features[package_name][12]
+                longest_line = package_features[package_name][13]
+                num_of_files = package_features[package_name][14]
+                has_license = package_features[package_name][15]
+            label = packages_type  # 16
 
-                # update the value in the package_features dictionary with the updated feature list
-                package_features[package_name] = pre_list + \
-                    updated_inner_lst + past_list
+            # create a new list of the current package's features
+            new_inner_lst = [name, version, is_PII, is_file_sys_access, is_process_creation,
+                             is_network_access, is_crypto_functionality, is_data_encoding,
+                             is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code,
+                             is_has_no_content, longest_line, num_of_files, has_license, label]
 
-            
-            break
+            # get the old feature list for the current package name
+            old_inner_lst = package_features[package_name]
+
+            logging.debug(f'new_inner_lst: {new_inner_lst[2:-7]}')
+            logging.debug(f'old_inner_lst: {old_inner_lst[2:-7]}')
+            # perform the bitwise operation between the new and old feature lists
+            updated_inner_lst = bitwise_operation(
+                new_inner_lst[2:-7], old_inner_lst[2:-7], '|')
+            logging.debug(f'updated_inner_lst: {updated_inner_lst}')
+
+            pre_list = [name, version]
+            past_list = [is_geolocation, is_minified_code, is_has_no_content,
+                         longest_line, num_of_files, has_license, label]
+
+            # update the value in the package_features dictionary with the updated feature list
+            package_features[package_name] = pre_list + \
+                updated_inner_lst + past_list
+
     headers = ['package', 'version', 'PII', 'file_sys_access', 'file_process_creation',
-                    'network_access', 'cryptographic_functionality', 'data_encoding',
-                    'dynamic_code_generation', 'package_installation', 'geolocation', 'minified_code',
-                    'no_content', 'longest_line', 'num_of_files', 'has_license', 'label']
+               'network_access', 'cryptographic_functionality', 'data_encoding',
+               'dynamic_code_generation', 'package_installation', 'geolocation', 'minified_code',
+               'no_content', 'longest_line', 'num_of_files', 'has_license', 'label']
 
-        # define the path for the output CSV file
+    # define the path for the output CSV file
     csv_file = 'dataset-validation.csv'
-    # print('calling write data to csv')
-    if level == 0:
-        write_dict_to_csv(dict_data=package_features,
-                      csv_file=csv_file, headers=headers, method='a')
-        return package_features
-        
-fileData = open("./utils/predictor/model.pkl", "rb")
-myModel  = joblib.load(fileData)
-fileData.close()
+    # decide whether to write the data in append mode or write mode based on the input malicious flag
+    method = 'a' if malicious else "w"
 
-def predictPackage(featureDict):
-    df = pd.DataFrame([featureDict])
-    prediction = myModel.predict(df)
-    print(prediction)
-    return prediction
-
-
-@app.route('/')
-def hello():
-    return "Hello from Siam!"
-
-
-@app.route('/post', methods=['POST'])
-def post():
-    try:
-        global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
-        # Get the JSON data from the request
-        data = request.get_json()
-
-        # Check if the request contains valid JSON data
-        if data is None:
-            return jsonify({'error': 'Invalid JSON data'}), 400
-
-        # print(data)
-
-        # # Process the received JSON object (data) here if needed
-        packages = data['packages']
-        for package in packages:
-            print(package)
-            pkgName = package.split(':')[0]
-            pkgVersion = package.split(':')[1]
-            print(pkgName, pkgVersion)
-            # Call the reproduce-package.sh script using subprocess
-            cmd = ['./utils/reproducer/reproduce-package.sh',
-                   pkgName, pkgVersion, '.', 'node_modules']
-            print(cmd)
-            result = subprocess.run(cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, text=True)
-
-            print(cmd)
-            print(result.returncode)
-            print(result.stdout)
-            print(result.stderr)
-            is_crypto_functionality = 0
-            is_data_encoding = 0
-            is_dynamic_code_generation = 0
-            is_package_installation = 0
-            is_geolocation = 0
-            is_minified_code = 0
-            is_has_no_content = 0
-            longest_line = 0
-            num_of_files = 0
-            has_license = 0
-            is_PII = 0
-            is_file_sys_access = 0
-            is_process_creation = 0
-            is_network_access = 0
-            pkgFeatures = extract_feature('./node_modules', './node_modules/'+pkgName , pkgName, pkgVersion, 0)[pkgName]
-            #traverse the node_modules folder and find the folder of pkgName
-            print('pkgFeatures: ', pkgFeatures)
-            #remove the first two elements from the list
-            pkgFeatures = pkgFeatures[2:]
-            #remove the last element from the list
-            pkgFeatures = pkgFeatures[:-1]
-            prediction = predictPackage(pkgFeatures)
-            print('prediction: ', prediction)
-            return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures)}), 200
-
-            
-
-        # Return the received JSON object as a JSON response
-
-        # create a package.json file in ./reproducer
-        # run npm install in ./reproducer
-
-        return jsonify(data), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # call the write_dict_to_csv function to write the package_features dictionary to the CSV file
+    write_dict_to_csv(dict_data=package_features,
+                      csv_file=csv_file, headers=headers, method=method)
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
-# import sys
-
-# print("Virtual Environment Path:")
-# print(sys.prefix)
+    benign_path = './benign'
+    extract_features(benign_path, malicious=False)

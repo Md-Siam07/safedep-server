@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "hunkypanky": "^3.0.2"
+    "chart.js": "^4.0.0"
   }
 }
