@@ -1,118 +1,93 @@
 #! /bin/bash
 
-# """
-# The script is a bash shell script designed to automate the build process for a Node.js package.
+"""
+The script is a shell script that is used to reproduce a specific version of a package, given a name and version. 
+The script performs the following tasks:
 
-# The script takes three arguments:
-# A. package-name: the name of the package to build
-# B. working-dir: the working directory where the package source code is located
-# C. out-dir: the directory where the built package tarball should be extracted to.
+1. Parses command-line arguments:
+  A. The first argument is the name and version of the package to be reproduced, in the format <package-name>@<version>
+  B. The second argument is the directory where the build result should be stored.
+  Finds the repository URL for the package using npm view.
 
-# Here is what the script does in detail:
-# 1. It checks if the number of arguments passed to the script is equal to 3, 
-#    and if not, it displays a usage message and exits with a status code of 1.
+2. Clones the repository using git clone.
 
-# 2. It sets three variables pkgName, working, and outdir to the first, second, 
-#    and third arguments, respectively. The outdir variable is converted to an absolute path using the readlink -f command.
+3. Checks out the right commit using git checkout. 
+The commit to checkout is either the commit specified in the gitHead property of the package (obtained using npm view), 
+or a branch or tag with a name that matches the version specified. 
+If neither the gitHead property nor the branch/tag can be found, the script checks out HEAD.
 
-# 3. The script then changes the current working directory to the working directory using cd.
+Calls build-package.sh, passing the package name, working directory, and output directory as arguments.
 
-# 4. The script outputs the current Git commit hash using git rev-parse HEAD.
-
-# 5. The script then finds the directory containing a package.json file with the same name as the package using the find command. 
-#    It uses the jq command to extract the "name" field from the package.json file and compares it to the pkgName variable. 
-#    The path to the directory is saved in the pkgDir variable.
-
-# 6. The script then runs npm install with the --production=false option in the root directory to install dependencies for the package.
-
-# 7. If pkgDir is not an empty string and is different from the current directory, 
-#    the script changes the current working directory to pkgDir and runs 
-#    npm install with the --production=false option to install dependencies specific to the package directory.
-
-# 8. The script then attempts to set the system time to the time of publication of the package using npm view, jq, and sudo date -s. 
-#    If this fails, a message is printed.
-
-# 9. The script runs various possible build scripts (compile, build, pack, and webpack) 
-#    using npm run and the timeout command with a 10-minute timeout.
-
-# 10. The script then creates a tarball of the package using npm pack and saves the path to the tarball in the tarball variable.
-
-# 11. The script resets the system time to the value saved in the now variable.
-
-# 12. The script creates the outdir directory using mkdir -p and then extracts the tarball to outdir using tar xf.
-
-# The set -ex at the beginning of the script sets the -e (errexit) and -x (xtrace) options, 
-# causing the script to exit immediately if a command returns a non-zero exit status, and display each command as it is executed.
-# """
+Overall, the script automates the process of reproducing a specific version of a package, 
+including checking out the right commit, building the package, and saving the result to a specified directory.
+"""
 
 set -ex
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <package-name> <package-version> <working-dir> <out-dir>"
-    exit 1
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+spec="$1"
+outdir=$(greadlink -f "$2")
+
+rm -rf "$spec"
+
+package="${spec%@*}"
+version="${spec##*@}"
+
+echo "Trying to reproduce package $package at version $version."
+
+# Clone repo
+for prop in repository.url repository homepage; do
+  repoUrl=$(npm view "$spec" "$prop")
+  if ! [ -z "$repoUrl" ]; then
+    break
+  fi
+done
+if [ -z "$repoUrl" ]; then
+  echo "Could not find git repository for $spec."
+  exit 1
 fi
+repoUrl=$(node -e "console.log(require('normalize-git-url')('$repoUrl').url)")
+# replace ssh:// with https://
+repoUrl=$(echo "$repoUrl" | sed 's#^ssh://#https://#')
+package_dir="$package"@"$version"
+git clone $repoUrl "$package_dir"
+# git clone "$repoUrl" working
 
-pkgName="$1"
-pkgVersion="$2"
-working="$3"
-outdir=$(readlink -f $4)
+# Check out right commit
+cd "$package_dir"
+# cd working
+ref=$(npm view "$spec" gitHead)
+if [ -z "$ref" ]; then
+  # typical branch names for $version
+  candidate_refs="$version v$version v-$version"
+  # if $version contains pre-release tags, try those as well; they might be shas
+  if [[ "$version" == *-* ]]; then
+    candidate_refs="$candidate_refs $(echo ${version#*-} | sed 's/[-.]/ /g')"
+  fi
 
-cd "$working"
+  for candidate_ref in $candidate_refs; do
+    ref=$(git rev-parse --verify "$candidate_ref" 2>/dev/null || echo "")
+    if ! [ -z "$ref" ]; then
+      break
+    fi
+  done
 
-#remove node_modules folder
-rm -rf node_modules
-#remove package-lock.json file
-rm -rf package-lock.json
-
-#create a new package.json file
-touch package.json
-
-#add the pkgName to the package.json file
-# echo "$pkgName" > package.json
-echo '{
-  "dependencies": {
-    "'$pkgName'": "'$pkgVersion'"
-  }
-}' > package.json
-
-git rev-parse HEAD
-
-# find directory containing package.json file with the same name as the package
-# we sort the paths so that shallower ones are preferred over deeper ones
-pkgDir=$(find . -name package.json | while read pkg; do test $(jq -r .name $pkg) = "$pkgName" && echo $pkg; done | xargs dirname | sort | head -n 1)
-echo "pkgDir: $pkgDir"
-# first install dependencies in the root
-npm install --production=false || echo "Dependency installation failed; continuing."
-
-# then install dependencies in the package directory (if different from root)
-if ! [ -z "$pkgDir" ] && [ "$pkgDir" != "." ]; then
-  echo "dhuksi: Installing dependencies in package directory."
-  cd "$pkgDir"
-  npm install --production=false || echo "Dependency installation failed; continuing."
+  if [ -z "$ref" ]; then
+    echo "Could not find source commit for version $version; trying HEAD."
+    ref=HEAD
+  fi
 fi
+git checkout "$ref"
 
-# attempt to set the time to the time of publication
-now=$(date)
-(npm view "$pkgName" time --json | jq ".[\"$version\"]" | xargs sudo -n date -s) || \
-  (echo "Failed to set date; continuing.")
+full_outdir="$outdir-$package_dir"
+mkdir -p "$full_outdir"
 
-# run a few possible build scripts under a 10-minute timeout
-# echo "run a few possible build scripts under a 10-minute timeout"
-# for target in compile build pack webpack; do
-#   for prefix in "" "our:"; do
-#     timeout 10m npm run "$prefix$target" || true
-#   done
-# done
-# tarball=$(npm pack | tail -n 1)
-
-# # reset time
-# sudo -n date -s "$now" || echo "Failed to reset time; continuing."
-
-# mkdir -p "$outdir"
-# tar xf "$tarball" -C "$outdir" --strip-components=1
+# Build package
+# "$SCRIPT_DIR/build-package.sh" "$package" . "$full_outdir"
 
 if [ $? -eq 0 ]; then
-  echo "Successfully build $spec."
+  echo "Successfully reproduced package $spec."
 else
-  echo "Failed to build $spec."
+  echo "Failed to reproduce package $spec."
 fi

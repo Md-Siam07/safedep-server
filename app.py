@@ -9,6 +9,12 @@ import logging
 import math
 import joblib
 import hashlib
+import json
+import sys
+import csv
+import random
+import time
+
 
 is_PII = 0
 is_file_sys_access = 0
@@ -24,6 +30,7 @@ is_has_no_content = 0
 longest_line = 0
 num_of_files = 0
 has_license = 0
+
 
 def search_PII(root_node) -> Literal[1, 0]:
     """
@@ -343,6 +350,7 @@ def does_contain_license(directory_path: str) -> int:
 
     return 0
 
+
 def predict(dataDict):
     print('predicting')
     print(dataDict)
@@ -350,23 +358,26 @@ def predict(dataDict):
     # return jsonify(dataDict), 200
     return jsonify(dataDict), 200
 
+
 app = Flask(__name__)
 
 # target_folder = "./node_modules/normalize-git-url"
+
 
 def extract_feature(directory, target_folder, package_name, package_version, level):
     global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
     package_features = {}  # {package_name:[f1, f2, ..., fn]}
     visited_packages = set()  # the set will contain the packages name that were traversed
     NUM_OF_FEATURES_INCLUDE = 17
-    
+
     for root, dirs, files in os.walk(directory):
-        print("Root:", root, " level: ", level, 'files: ', files, 'target_folder: ', target_folder)
+        print("Root:", root, " level: ", level, 'files: ',
+              files, 'target_folder: ', target_folder)
         # print("Dirs:", dirs)
         # print("Files:", files)
-        
+
         if root == target_folder:
-            
+
             # Process the files or perform actions in the target folder
             for file in files:
                 print('file: ', file)
@@ -374,24 +385,25 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
                     continue
                 file_path = os.path.join(root, file)
                 # print('file_path: ', file_path)
-                
+
                 if package_name not in package_features:
                     # if not, initialize a list of NUM_OF_FEATURES_INCLUDE elements with value 0
                     # print('not init')
                     init_lst = [0] * NUM_OF_FEATURES_INCLUDE
                     package_features[package_name] = init_lst
-                
+
                 name, version = package_name, package_version
-                is_PII = max(is_PII,search_PII(parse_file(file_path))) 
-                is_file_sys_access = max(is_file_sys_access ,search_file_sys_access(
-                parse_file(file_path)))  # 3
+                is_PII = max(is_PII, search_PII(parse_file(file_path)))
+                is_file_sys_access = max(is_file_sys_access, search_file_sys_access(
+                    parse_file(file_path)))  # 3
                 is_process_creation = max(is_process_creation, search_file_process_creation(
                     parse_file(file_path)))  # 4
                 is_network_access = max(is_network_access, search_network_access(
                     parse_file(file_path)))  # 5
                 is_crypto_functionality = max(is_crypto_functionality, search_cryptographic_functionality(
                     parse_file(file_path)))  # 6
-                is_data_encoding = max(is_data_encoding, search_data_encoding(parse_file(file_path)))   # 7
+                is_data_encoding = max(
+                    is_data_encoding, search_data_encoding(parse_file(file_path)))   # 7
                 is_dynamic_code_generation = max(is_dynamic_code_generation, search_dynamic_code_generation(
                     parse_file(file_path)))   # 8
                 is_package_installation = max(is_package_installation, search_package_installation(
@@ -406,8 +418,10 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
                     print('index: ', index)
                     logging.debug(f"dirname[:index]: {root[:index]}")
                     print('root[:index]: ', root[:index])
-                    is_geolocation = max(is_geolocation,search_geolocation(root[:index]))  # 10
-                    is_minified_code = max(is_minified_code, search_minified_code(root[:index]))  # 11
+                    is_geolocation = max(
+                        is_geolocation, search_geolocation(root[:index]))  # 10
+                    is_minified_code = max(
+                        is_minified_code, search_minified_code(root[:index]))  # 11
                     is_has_no_content = search_packages_with_no_content(
                         root[:index])  # 12
                     print('majhe')
@@ -427,18 +441,19 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
                     longest_line = package_features[package_name][13]
                     num_of_files = package_features[package_name][14]
                     has_license = package_features[package_name][15]
-                if(dirs.__len__() > 0 and level < 1):
+                if (dirs.__len__() > 0 and level < 1):
                     # print('dirs calling inside: ', level, root ,dirs)
                     for dir in dirs:
-                        extract_feature(os.path.join(root, dir), os.path.join(root, dir), package_name, package_version, level+1)
+                        extract_feature(os.path.join(root, dir), os.path.join(
+                            root, dir), package_name, package_version, level+1)
 
                 label = 'Unknown'  # 16
                 # create a new list of the current package's features
                 new_inner_lst = [name, version, is_PII, is_file_sys_access, is_process_creation,
-                                is_network_access, is_crypto_functionality, is_data_encoding,
-                                is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code,
-                                is_has_no_content, longest_line, num_of_files, has_license, label]
-                
+                                 is_network_access, is_crypto_functionality, is_data_encoding,
+                                 is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code,
+                                 is_has_no_content, longest_line, num_of_files, has_license, label]
+
                 # print('new_inner_lst: ', new_inner_lst)
                 # get the old feature list for the current package name
                 old_inner_lst = package_features[package_name]
@@ -452,36 +467,82 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
 
                 pre_list = [name, version]
                 past_list = [is_geolocation, is_minified_code, is_has_no_content,
-                            longest_line, num_of_files, has_license, label]
+                             longest_line, num_of_files, has_license, label]
 
                 # update the value in the package_features dictionary with the updated feature list
                 package_features[package_name] = pre_list + \
                     updated_inner_lst + past_list
 
-            
             break
     headers = ['package', 'version', 'PII', 'file_sys_access', 'file_process_creation',
-                    'network_access', 'cryptographic_functionality', 'data_encoding',
-                    'dynamic_code_generation', 'package_installation', 'geolocation', 'minified_code',
-                    'no_content', 'longest_line', 'num_of_files', 'has_license', 'label']
+               'network_access', 'cryptographic_functionality', 'data_encoding',
+               'dynamic_code_generation', 'package_installation', 'geolocation', 'minified_code',
+               'no_content', 'longest_line', 'num_of_files', 'has_license', 'label']
 
-        # define the path for the output CSV file
+    # define the path for the output CSV file
     csv_file = 'dataset-validation.csv'
     # print('calling write data to csv')
     if level == 0:
         write_dict_to_csv(dict_data=package_features,
-                      csv_file=csv_file, headers=headers, method='a')
+                          csv_file=csv_file, headers=headers, method='a')
         return package_features
-        
+
+
 fileData = open("./utils/predictor/model.pkl", "rb")
-myModel  = joblib.load(fileData)
+myModel = joblib.load(fileData)
 fileData.close()
+
 
 def predictPackage(featureDict):
     df = pd.DataFrame([featureDict])
     prediction = myModel.predict(df)
     print(prediction)
     return prediction
+
+
+def hash_package(root):
+    """
+    Compute an md5 hash of all files under root, visiting them in deterministic order.
+    `package.json` files are stripped of their `name` and `version` fields.
+    """
+    m = hashlib.md5()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        for filename in sorted(filenames):
+            path = os.path.join(dirpath, filename)
+            m.update(f"{os.path.relpath(path, root)}\n".encode("utf-8"))
+            if filename == "package.json":
+                pkg = json.load(open(path))
+                pkg["name"] = ""
+                pkg["version"] = ""
+                m.update(json.dumps(pkg, sort_keys=True).encode("utf-8"))
+            else:
+                try:
+                    with open(path, "rb") as f:
+                        m.update(f.read())
+                except:
+                    print(f'ERROR: path {path}')
+    return m.hexdigest()
+
+
+def is_hash_in_csv(root: str, csv_file: str) -> int:
+    """
+    This function calculates the hash of a package and returns 1 if the hash is in the given CSV file, and 0 otherwise.
+
+    Args:
+        root: The root directory of the package to calculate the hash
+        csv_file: The path to the CSV file.
+
+    Returns:
+        1 if the hash of the directory is in the CSV file, 0 otherwise.
+    """
+    hash = hash_package(root)
+    with open(csv_file, 'r') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            if row[0] == hash:
+                return 1
+    return 0
 
 
 @app.route('/')
@@ -495,7 +556,6 @@ def post():
         global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
         # Get the JSON data from the request
         data = request.get_json()
-
         # Check if the request contains valid JSON data
         if data is None:
             return jsonify({'error': 'Invalid JSON data'}), 400
@@ -506,20 +566,29 @@ def post():
         packages = data['packages']
         for package in packages:
             print(package)
+            # num = random.randint(0, 10)
+            # if num < 5:
+            #     # SLEEP FOR 2 seconds
+            #     time.sleep(2)
+            #     return jsonify({'prediction': 'Malicious', 'features': [
+            #         1, 0, 0, 1, 1, 1, 1, 1, 1]}), 200
+            # else:
+            #     time.sleep(2)
+            #     return jsonify({'prediction': 'Benign', 'features': [
+            #         0, 1, 1, 0, 0, 0, 0, 0, 0]}), 200
             pkgName = package.split(':')[0]
             pkgVersion = package.split(':')[1]
             print(pkgName, pkgVersion)
             # Call the reproduce-package.sh script using subprocess
-            cmd = ['./utils/reproducer/reproduce-package.sh',
+            cmd = ['./utils/reproducer/build-package.sh',
                    pkgName, pkgVersion, '.', 'node_modules']
             print(cmd)
-            result = subprocess.run(cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, text=True)
-
-            print(cmd)
-            print(result.returncode)
-            print(result.stdout)
-            print(result.stderr)
+            result = subprocess.Popen(cmd)
+            result.wait()
+            # print(cmd)
+            # print(result.returncode)
+            # print(result.stdout)
+            # print(result.stderr)
             is_crypto_functionality = 0
             is_data_encoding = 0
             is_dynamic_code_generation = 0
@@ -534,18 +603,42 @@ def post():
             is_file_sys_access = 0
             is_process_creation = 0
             is_network_access = 0
-            pkgFeatures = extract_feature('./node_modules', './node_modules/'+pkgName , pkgName, pkgVersion, 0)[pkgName]
-            #traverse the node_modules folder and find the folder of pkgName
+            pkgFeatures = extract_feature(
+                './node_modules', './node_modules/'+pkgName, pkgName, pkgVersion, 0)[pkgName]
+            # traverse the node_modules folder and find the folder of pkgName
             print('pkgFeatures: ', pkgFeatures)
-            #remove the first two elements from the list
+            # remove the first two elements from the list
             pkgFeatures = pkgFeatures[2:]
-            #remove the last element from the list
+            # remove the last element from the list
             pkgFeatures = pkgFeatures[:-1]
             prediction = predictPackage(pkgFeatures)
             print('prediction: ', prediction)
-            return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures)}), 200
+            reproducible = 0
+            cloned = 0
+            finalPrediction = prediction[0]
+            if prediction[0] == 'Malicious' or prediction[0] == 'malicious':
+                # check reproducibility
+                cmd = ['./utils/reproducer/reproduce-package.sh',
+                       pkgName + '@' + pkgVersion, './node_modules/']
+                result = subprocess.run(cmd, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE, text=True)
+                print(result.returncode)
+                print(result.stdout)
+                print(result.stderr)
+                if result.returncode == 0:
+                    pkgFeatures.append('benign')
+                    finalPrediction = 'Benign'
+                    reproducible = 1
 
-            
+            else:
+                cloned = is_hash_in_csv('./node_modules/'+pkgName,
+                                        'malicious_hash.csv')
+                if cloned == 1:
+                    pkgFeatures.append('malicious')
+                    finalPrediction = 'Malicious'
+                    cloned = 0
+                # check clone
+            return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction)}), 200
 
         # Return the received JSON object as a JSON response
 
@@ -558,7 +651,7 @@ def post():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5001)
 
 # import sys
 

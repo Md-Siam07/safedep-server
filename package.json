@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "chart.js": "^4.0.0"
+    "normalize-git-url": "3.0.2",
+    "normalize-git-url" : "^3.0.2"
   }
 }
