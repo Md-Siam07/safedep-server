@@ -14,6 +14,7 @@ import sys
 import csv
 import random
 import time
+from pymongo import MongoClient
 
 
 is_PII = 0
@@ -30,6 +31,16 @@ is_has_no_content = 0
 longest_line = 0
 num_of_files = 0
 has_license = 0
+
+# MongoDB connection URI
+MONGO_URI = "mongodb+srv://bsse1104:mayask4545@cluster0.x2yb5bm.mongodb.net/safedep?retryWrites=true&w=majority"
+
+# Create a MongoClient using the connection URI
+client = MongoClient(MONGO_URI)
+
+# Access your MongoDB database
+db = client.get_database("SafeDep")
+collection = db.get_collection("Packages")
 
 
 def search_PII(root_node) -> Literal[1, 0]:
@@ -550,7 +561,23 @@ def hello():
     return "Hello from Siam!"
 
 
-@app.route('/post', methods=['POST'])
+@app.route('/package', methods=['GET'])
+def getPackageDetails():
+    # Get package name and version from the request parameters
+    package_name = request.args.get('package_name')
+    package_version = request.args.get('package_version')
+
+    # Query the database for the package
+    package = collection.find_one({"name": package_name, "version": package_version})
+    print('package: ' , package)
+    if package:
+        # Package found, return the package details as JSON
+        return jsonify({"package_name": package["name"], "package_version": package["version"], "other_info": package["other_info"]})
+    else:
+        # Package not found
+        return jsonify({"error": "Package not found"}, 404)
+
+@app.route('/package', methods=['POST'])
 def post():
     try:
         global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
@@ -651,6 +678,7 @@ def post():
 
 
 if __name__ == '__main__':
+    print('db',db)
     app.run(host='0.0.0.0', port=5001)
 
 # import sys

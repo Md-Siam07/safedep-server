@@ -1,4 +1,5 @@
 ./reproducer/node_modules
+./build/my-languages.so
 utils/feature-extraction/vendor/tree-sitter-javascript/node_modules
 node_modules
 benign
