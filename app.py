@@ -15,6 +15,9 @@ import csv
 import random
 import time
 from pymongo import MongoClient
+from bson import json_util
+from datetime import datetime, timedelta
+import requests
 
 
 is_PII = 0
@@ -34,6 +37,7 @@ has_license = 0
 
 # MongoDB connection URI
 MONGO_URI = "mongodb+srv://bsse1104:mayask4545@cluster0.x2yb5bm.mongodb.net/safedep?retryWrites=true&w=majority"
+NPM_API_URL = 'https://api.npmjs.org/downloads/point'
 
 # Create a MongoClient using the connection URI
 client = MongoClient(MONGO_URI)
@@ -382,8 +386,8 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
     NUM_OF_FEATURES_INCLUDE = 17
 
     for root, dirs, files in os.walk(directory):
-        print("Root:", root, " level: ", level, 'files: ',
-              files, 'target_folder: ', target_folder)
+        # print("Root:", root, " level: ", level, 'files: ',
+            #   files, 'target_folder: ', target_folder)
         # print("Dirs:", dirs)
         # print("Files:", files)
 
@@ -560,13 +564,104 @@ def is_hash_in_csv(root: str, csv_file: str) -> int:
 def hello():
     return "Hello from Siam!"
 
+@app.route('/packages/vote', methods=['POST'])
+def vote():
+    # Get the JSON data from the request
+    data = request.get_json()
+    # Check if the request contains valid JSON data
+    if data is None:
+        return jsonify({'error': 'Invalid JSON data'}), 400
+
+    # print(data)
+
+    # # Process the received JSON object (data) here if needed
+    pkgName = request.args.get('package_name')
+    pkgVersion = request.args.get('package_version')
+    vote = data['vote']
+    # query the database for the package
+    package = collection.find_one({ "name": pkgName, "version": pkgVersion})
+    print('package: ', package)
+    if package:
+        # Package found, return the package details as JSON
+        # return jsonify({"package_name": package["name"], "package_version": package["version"], "other_info": package["other_info"]})
+        # update the package info
+        totalVotes = package['totalVotes']
+        agreedVotes = package['agreedVotes']
+        if vote == 'Agree':
+            agreedVotes += 1
+        totalVotes += 1
+
+        # update the package info in db
+        collection.find_one_and_update({"name": pkgName, "version": pkgVersion}, {"$set": {"totalVotes": totalVotes, "agreedVotes": agreedVotes}})
+        return jsonify({"package_name": package["name"], "package_version": package["version"], "totalVotes": totalVotes, "agreedVotes": agreedVotes}), 200
+    else:
+        # Package not found
+        return jsonify({"error": "Package not found"}, 404)
+
+def getDownloadCount(package_name):
+    
+    yearly_download_count = []
+    # Calculate the start and end dates for the week range
+    end_date = datetime.now()
+    for i in range(0,52):
+        print('i: ', i)
+        start_date = end_date - timedelta(days=7)
+
+        # Format dates as strings in the 'YYYY-MM-DD' format
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+
+        # Build the URL for the npm download stats API
+        url = f'{NPM_API_URL}/{start_date_str}:{end_date_str}/{package_name}'
+
+        try:
+            # Make a GET request to the npm API
+            print(url)
+            response = requests.get(url)
+            print(response)
+
+            if response.status_code == 200:
+                # Parse the JSON response and extract the download count
+                data = response.json()
+                print('data: ', data)
+                download_count = data['downloads']
+                print('download count: ', download_count)
+                yearly_download_count.append({'downloads': download_count, 'startDate': start_date_str, 'endDate': end_date_str})
+                # return jsonify({"package_name": package_name, "download_count": download_count})
+            else:
+                # API request failed
+                print('error occurred')
+                # return jsonify({"error": "Failed to retrieve download count"}, 500)
+        except Exception as e:
+            print("error", str(e))
+            return jsonify({"error": str(e)}, 500)
+        end_date = start_date
+    return {"package_name": package_name, "download_count": yearly_download_count}
 
 @app.route('/package', methods=['GET'])
 def getPackageDetails():
     # Get package name and version from the request parameters
     package_name = request.args.get('package_name')
     package_version = request.args.get('package_version')
+    try:
+        # Run 'npm view' command and capture the output
+        processed_package_name = package_name + '@' + package_version
+        cmd = ['npm', 'view', processed_package_name, '--json']
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
+        if result.returncode == 0:
+            # Command ran successfully
+            package_info = json.loads(result.stdout)
+
+            # Get the download count for the package
+            download_count = getDownloadCount(package_name=package_name)
+            print('download_count: ', download_count)
+            return jsonify(package_info)
+        else:
+            # Command failed
+            return jsonify({"error": "Failed to retrieve package information"}, 500)
+    except Exception as e:
+        return jsonify({"error": str(e)}, 500)
     # Query the database for the package
     package = collection.find_one({"name": package_name, "version": package_version})
     print('package: ' , package)
@@ -576,7 +671,7 @@ def getPackageDetails():
     else:
         # Package not found
         return jsonify({"error": "Package not found"}, 404)
-# hello
+
 @app.route('/package', methods=['POST'])
 def post():
     try:
@@ -592,20 +687,43 @@ def post():
         # # Process the received JSON object (data) here if needed
         packages = data['packages']
         for package in packages:
-            print(package)
+            # print(package)
             # num = random.randint(0, 10)
             # if num < 5:
             #     # SLEEP FOR 2 seconds
-            #     time.sleep(2)
-            #     return jsonify({'prediction': 'Malicious', 'features': [
-            #         1, 0, 0, 1, 1, 1, 1, 1, 1]}), 200
+            #     # time.sleep(2)
+            #     packageInfo = {
+            #         'prediction': 'Benign',
+            #         'features': [0, 1, 1, 0, 0, 0, 0, 0, 0],
+            #         'reproducible': 0,
+            #         'cloned': 0,
+            #         'finalPrediction': 'Benign'
+            #     }
+            #     # Store the data in the MongoDB collection
+            #     collection.insert_one(packageInfo)
+                
             # else:
-            #     time.sleep(2)
-            #     return jsonify({'prediction': 'Benign', 'features': [
-            #         0, 1, 1, 0, 0, 0, 0, 0, 0]}), 200
+            #     packageInfo = {
+            #         'prediction': 'Benign',
+            #         'features': [0, 1, 1, 0, 0, 0, 0, 0, 0]
+            #     }
+            #     # Store the data in the MongoDB collection
+            #     collection.insert_one(packageInfo)
+            # return jsonify({'prediction': 'Malicious', 'features': [
+            #         1, 0, 0, 1, 1, 1, 1, 1, 1]}), 200
             pkgName = package.split(':')[0]
             pkgVersion = package.split(':')[1]
             print(pkgName, pkgVersion)
+
+            # check if a package with the same name and version already exists in the database
+            pkg = collection.find_one({"name": pkgName, "version": pkgVersion})
+            
+            if pkg:
+                # Package found, return the package details as JSON
+                print('package found: ', pkg)
+                # return jsonify(pkg_serializable), 200
+                return jsonify({'_id': str(pkg['_id']) ,'prediction': str(pkg['prediction']), 'features': str(pkg['features']), 'reproducible': str(pkg['reproducible']), 'cloned': str(pkg['cloned']), 'finalPrediction': str(pkg['finalPrediction'])}), 200
+
             # Call the reproduce-package.sh script using subprocess
             cmd = ['./utils/reproducer/build-package.sh',
                    pkgName, pkgVersion, '.', 'node_modules']
@@ -665,6 +783,22 @@ def post():
                     finalPrediction = 'Malicious'
                     cloned = 0
                 # check clone
+            
+            # insert the package info in db
+            packageInfo = {
+                'name': pkgName,
+                'version': pkgVersion,
+                'features': pkgFeatures,
+                'prediction': prediction[0],
+                'reproducible': reproducible,
+                'cloned': cloned,
+                'finalPrediction': finalPrediction,
+                'totalVotes': 0,
+                'agreedVotes': 0,
+            }
+            # Store the data in the MongoDB collection
+            collection.insert_one(packageInfo)
+
             return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction)}), 200
 
         # Return the received JSON object as a JSON response
