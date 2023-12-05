@@ -18,6 +18,7 @@ from pymongo import MongoClient
 from bson import json_util
 from datetime import datetime, timedelta
 import requests
+from flask_cors import CORS
 
 
 is_PII = 0
@@ -375,6 +376,7 @@ def predict(dataDict):
 
 
 app = Flask(__name__)
+CORS(app)
 
 # target_folder = "./node_modules/normalize-git-url"
 
@@ -387,7 +389,7 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
 
     for root, dirs, files in os.walk(directory):
         # print("Root:", root, " level: ", level, 'files: ',
-            #   files, 'target_folder: ', target_folder)
+        #   files, 'target_folder: ', target_folder)
         # print("Dirs:", dirs)
         # print("Files:", files)
 
@@ -564,6 +566,7 @@ def is_hash_in_csv(root: str, csv_file: str) -> int:
 def hello():
     return "Hello from Siam!"
 
+
 @app.route('/packages/vote', methods=['POST'])
 def vote():
     # Get the JSON data from the request
@@ -579,7 +582,7 @@ def vote():
     pkgVersion = request.args.get('package_version')
     vote = data['vote']
     # query the database for the package
-    package = collection.find_one({ "name": pkgName, "version": pkgVersion})
+    package = collection.find_one({"name": pkgName, "version": pkgVersion})
     print('package: ', package)
     if package:
         # Package found, return the package details as JSON
@@ -592,18 +595,20 @@ def vote():
         totalVotes += 1
 
         # update the package info in db
-        collection.find_one_and_update({"name": pkgName, "version": pkgVersion}, {"$set": {"totalVotes": totalVotes, "agreedVotes": agreedVotes}})
+        collection.find_one_and_update({"name": pkgName, "version": pkgVersion}, {
+                                       "$set": {"totalVotes": totalVotes, "agreedVotes": agreedVotes}})
         return jsonify({"package_name": package["name"], "package_version": package["version"], "totalVotes": totalVotes, "agreedVotes": agreedVotes}), 200
     else:
         # Package not found
         return jsonify({"error": "Package not found"}, 404)
 
+
 def getDownloadCount(package_name):
-    
+
     yearly_download_count = []
     # Calculate the start and end dates for the week range
     end_date = datetime.now()
-    for i in range(0,52):
+    for i in range(0, 52):
         print('i: ', i)
         start_date = end_date - timedelta(days=7)
 
@@ -626,7 +631,8 @@ def getDownloadCount(package_name):
                 print('data: ', data)
                 download_count = data['downloads']
                 print('download count: ', download_count)
-                yearly_download_count.append({'downloads': download_count, 'startDate': start_date_str, 'endDate': end_date_str})
+                yearly_download_count.append(
+                    {'downloads': download_count, 'startDate': start_date_str, 'endDate': end_date_str})
                 # return jsonify({"package_name": package_name, "download_count": download_count})
             else:
                 # API request failed
@@ -638,6 +644,7 @@ def getDownloadCount(package_name):
         end_date = start_date
     return {"package_name": package_name, "download_count": yearly_download_count}
 
+
 @app.route('/package', methods=['GET'])
 def getPackageDetails():
     # Get package name and version from the request parameters
@@ -647,44 +654,155 @@ def getPackageDetails():
         # Run 'npm view' command and capture the output
         processed_package_name = package_name + '@' + package_version
         cmd = ['npm', 'view', processed_package_name, '--json']
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         if result.returncode == 0:
             # Command ran successfully
             package_info = json.loads(result.stdout)
 
-            # Get the download count for the package
-            download_count = getDownloadCount(package_name=package_name)
-            print('download_count: ', download_count)
-            return jsonify(package_info)
+            # get the package info from database
+            package = collection.find_one(
+                {"name": package_name, "version": package_version})
+            print('package: ', package)
+            if package:
+                # Package found, return the package details as JSON
+                package_info['prediction'] = package['prediction']
+                package_info['reproducible'] = package['reproducible']
+                package_info['cloned'] = package['cloned']
+                package_info['features'] = package['features']
+                package_info['finalPrediction'] = package['finalPrediction']
+                package_info['totalVotes'] = package['totalVotes']
+                package_info['agreedVotes'] = package['agreedVotes']
+                return jsonify(package_info)
+                # package_info['download_count'] = getDownloadCount(package_name)
+
+            else:
+                package = posthelper(package_name, package_version)
+                package_info['prediction'] = package['prediction']
+                package_info['reproducible'] = package['reproducible']
+                package_info['cloned'] = package['cloned']
+                package_info['features'] = package['features']
+                package_info['finalPrediction'] = package['finalPrediction']
+                package_info['totalVotes'] = package['totalVotes']
+                package_info['agreedVotes'] = package['agreedVotes']
+                return jsonify(package_info)
         else:
             # Command failed
             return jsonify({"error": "Failed to retrieve package information"}, 500)
     except Exception as e:
         return jsonify({"error": str(e)}, 500)
-    # Query the database for the package
-    package = collection.find_one({"name": package_name, "version": package_version})
-    print('package: ' , package)
-    if package:
-        # Package found, return the package details as JSON
-        return jsonify({"package_name": package["name"], "package_version": package["version"], "other_info": package["other_info"]})
-    else:
-        # Package not found
-        return jsonify({"error": "Package not found"}, 404)
+
+
+def posthelper(pkgName, pkgVersion):
+    try:
+        global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
+        # check if a package with the same name and version already exists in the database
+        pkg = collection.find_one({"name": pkgName, "version": pkgVersion})
+
+        if pkg:
+            # Package found, return the package details as JSON
+            print('package found: ', pkg)
+            # return jsonify(pkg_serializable), 200
+            return jsonify({'_id': str(pkg['_id']), 'prediction': str(pkg['prediction']), 'features': str(pkg['features']), 'reproducible': str(pkg['reproducible']), 'cloned': str(pkg['cloned']), 'finalPrediction': str(pkg['finalPrediction'])}), 200
+
+         # Call the reproduce-package.sh script using subprocess
+        cmd = ['./utils/reproducer/build-package.sh',
+               pkgName, pkgVersion, '.', 'node_modules']
+        print(cmd)
+        result = subprocess.Popen(cmd)
+        result.wait()
+        # print(cmd)
+        # print(result.returncode)
+        # print(result.stdout)
+        # print(result.stderr)
+        is_crypto_functionality = 0
+        is_data_encoding = 0
+        is_dynamic_code_generation = 0
+        is_package_installation = 0
+        is_geolocation = 0
+        is_minified_code = 0
+        is_has_no_content = 0
+        longest_line = 0
+        num_of_files = 0
+        has_license = 0
+        is_PII = 0
+        is_file_sys_access = 0
+        is_process_creation = 0
+        is_network_access = 0
+        pkgFeatures = extract_feature(
+            './node_modules', './node_modules/'+pkgName, pkgName, pkgVersion, 0)[pkgName]
+        # traverse the node_modules folder and find the folder of pkgName
+        print('pkgFeatures: ', pkgFeatures)
+        # remove the first two elements from the list
+        pkgFeatures = pkgFeatures[2:]
+        # remove the last element from the list
+        pkgFeatures = pkgFeatures[:-1]
+        prediction = predictPackage(pkgFeatures)
+        print('prediction: ', prediction)
+        reproducible = 0
+        cloned = 0
+        finalPrediction = prediction[0]
+        print('finalPrediction: ', finalPrediction)
+        if prediction[0] == 'Malicious' or prediction[0] == 'malicious':
+            # check reproducibility
+            cmd = ['./utils/reproducer/reproduce-package.sh',
+                   pkgName + '@' + pkgVersion, './node_modules/']
+            result = subprocess.run(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True)
+            print(result.returncode)
+            print(result.stdout)
+            print(result.stderr)
+            if result.returncode == 0:
+                pkgFeatures.append('benign')
+                finalPrediction = 'Benign'
+                reproducible = 1
+
+        else:
+            cloned = is_hash_in_csv('./node_modules/'+pkgName,
+                                    'malicious_hash.csv')
+            if cloned == 1:
+                pkgFeatures.append('malicious')
+                finalPrediction = 'Malicious'
+                cloned = 0
+                # check clone
+
+            # insert the package info in db
+        packageInfo = {
+            'name': pkgName,
+            'version': pkgVersion,
+            'features': pkgFeatures,
+            'prediction': prediction[0],
+            'reproducible': reproducible,
+            'cloned': cloned,
+            'finalPrediction': finalPrediction,
+            'totalVotes': 0,
+            'agreedVotes': 0,
+        }
+        # Store the data in the MongoDB collection
+        collection.insert_one(packageInfo)
+
+        return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction)}), 200
+
+        # Return the received JSON object as a JSON response
+
+        # create a package.json file in ./reproducer
+        # run npm install in ./reproducer
+
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/package', methods=['POST'])
 def post():
     try:
         global is_PII, is_file_sys_access, is_process_creation, is_network_access, is_crypto_functionality, is_data_encoding, is_dynamic_code_generation, is_package_installation, is_geolocation, is_minified_code, is_has_no_content, longest_line, num_of_files, has_license
-        # Get the JSON data from the request
+
         data = request.get_json()
-        # Check if the request contains valid JSON data
+
         if data is None:
             return jsonify({'error': 'Invalid JSON data'}), 400
-
-        # print(data)
-
-        # # Process the received JSON object (data) here if needed
         packages = data['packages']
         for package in packages:
             # print(package)
@@ -701,7 +819,7 @@ def post():
             #     }
             #     # Store the data in the MongoDB collection
             #     collection.insert_one(packageInfo)
-                
+
             # else:
             #     packageInfo = {
             #         'prediction': 'Benign',
@@ -713,93 +831,94 @@ def post():
             #         1, 0, 0, 1, 1, 1, 1, 1, 1]}), 200
             pkgName = package.split(':')[0]
             pkgVersion = package.split(':')[1]
-            print(pkgName, pkgVersion)
+            print('pkgName: ', pkgName, 'pkgVersion: ', pkgVersion)
+            posthelper(pkgName, pkgVersion)
 
             # check if a package with the same name and version already exists in the database
-            pkg = collection.find_one({"name": pkgName, "version": pkgVersion})
-            
-            if pkg:
-                # Package found, return the package details as JSON
-                print('package found: ', pkg)
-                # return jsonify(pkg_serializable), 200
-                return jsonify({'_id': str(pkg['_id']) ,'prediction': str(pkg['prediction']), 'features': str(pkg['features']), 'reproducible': str(pkg['reproducible']), 'cloned': str(pkg['cloned']), 'finalPrediction': str(pkg['finalPrediction'])}), 200
+            # pkg = collection.find_one({"name": pkgName, "version": pkgVersion})
+            # print('package: ', pkg)
+            # if pkg:
+            #     # Package found, return the package details as JSON
+            #     print('package found: ', pkg)
+            #     # return jsonify(pkg_serializable), 200
+            #     return jsonify({'_id': str(pkg['_id']), 'prediction': str(pkg['prediction']), 'features': str(pkg['features']), 'reproducible': str(pkg['reproducible']), 'cloned': str(pkg['cloned']), 'finalPrediction': str(pkg['finalPrediction'])}), 200
 
-            # Call the reproduce-package.sh script using subprocess
-            cmd = ['./utils/reproducer/build-package.sh',
-                   pkgName, pkgVersion, '.', 'node_modules']
-            print(cmd)
-            result = subprocess.Popen(cmd)
-            result.wait()
+            # # Call the reproduce-package.sh script using subprocess
+            # cmd = ['./utils/reproducer/build-package.sh',
+            #        pkgName, pkgVersion, '.', 'node_modules']
             # print(cmd)
-            # print(result.returncode)
-            # print(result.stdout)
-            # print(result.stderr)
-            is_crypto_functionality = 0
-            is_data_encoding = 0
-            is_dynamic_code_generation = 0
-            is_package_installation = 0
-            is_geolocation = 0
-            is_minified_code = 0
-            is_has_no_content = 0
-            longest_line = 0
-            num_of_files = 0
-            has_license = 0
-            is_PII = 0
-            is_file_sys_access = 0
-            is_process_creation = 0
-            is_network_access = 0
-            pkgFeatures = extract_feature(
-                './node_modules', './node_modules/'+pkgName, pkgName, pkgVersion, 0)[pkgName]
-            # traverse the node_modules folder and find the folder of pkgName
-            print('pkgFeatures: ', pkgFeatures)
-            # remove the first two elements from the list
-            pkgFeatures = pkgFeatures[2:]
-            # remove the last element from the list
-            pkgFeatures = pkgFeatures[:-1]
-            prediction = predictPackage(pkgFeatures)
-            print('prediction: ', prediction)
-            reproducible = 0
-            cloned = 0
-            finalPrediction = prediction[0]
-            if prediction[0] == 'Malicious' or prediction[0] == 'malicious':
-                # check reproducibility
-                cmd = ['./utils/reproducer/reproduce-package.sh',
-                       pkgName + '@' + pkgVersion, './node_modules/']
-                result = subprocess.run(cmd, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE, text=True)
-                print(result.returncode)
-                print(result.stdout)
-                print(result.stderr)
-                if result.returncode == 0:
-                    pkgFeatures.append('benign')
-                    finalPrediction = 'Benign'
-                    reproducible = 1
+            # result = subprocess.Popen(cmd)
+            # result.wait()
+            # # print(cmd)
+            # # print(result.returncode)
+            # # print(result.stdout)
+            # # print(result.stderr)
+            # is_crypto_functionality = 0
+            # is_data_encoding = 0
+            # is_dynamic_code_generation = 0
+            # is_package_installation = 0
+            # is_geolocation = 0
+            # is_minified_code = 0
+            # is_has_no_content = 0
+            # longest_line = 0
+            # num_of_files = 0
+            # has_license = 0
+            # is_PII = 0
+            # is_file_sys_access = 0
+            # is_process_creation = 0
+            # is_network_access = 0
+            # pkgFeatures = extract_feature(
+            #     './node_modules', './node_modules/'+pkgName, pkgName, pkgVersion, 0)[pkgName]
+            # # traverse the node_modules folder and find the folder of pkgName
+            # print('pkgFeatures: ', pkgFeatures)
+            # # remove the first two elements from the list
+            # pkgFeatures = pkgFeatures[2:]
+            # # remove the last element from the list
+            # pkgFeatures = pkgFeatures[:-1]
+            # prediction = predictPackage(pkgFeatures)
+            # print('prediction: ', prediction)
+            # reproducible = 0
+            # cloned = 0
+            # finalPrediction = prediction[0]
+            # if prediction[0] == 'Malicious' or prediction[0] == 'malicious':
+            #     # check reproducibility
+            #     cmd = ['./utils/reproducer/reproduce-package.sh',
+            #            pkgName + '@' + pkgVersion, './node_modules/']
+            #     result = subprocess.run(cmd, stdout=subprocess.PIPE,
+            #                             stderr=subprocess.PIPE, text=True)
+            #     print(result.returncode)
+            #     print(result.stdout)
+            #     print(result.stderr)
+            #     if result.returncode == 0:
+            #         pkgFeatures.append('benign')
+            #         finalPrediction = 'Benign'
+            #         reproducible = 1
 
-            else:
-                cloned = is_hash_in_csv('./node_modules/'+pkgName,
-                                        'malicious_hash.csv')
-                if cloned == 1:
-                    pkgFeatures.append('malicious')
-                    finalPrediction = 'Malicious'
-                    cloned = 0
-                # check clone
-            
-            # insert the package info in db
-            packageInfo = {
-                'name': pkgName,
-                'version': pkgVersion,
-                'features': pkgFeatures,
-                'prediction': prediction[0],
-                'reproducible': reproducible,
-                'cloned': cloned,
-                'finalPrediction': finalPrediction,
-                'totalVotes': 0,
-                'agreedVotes': 0,
-            }
-            # Store the data in the MongoDB collection
-            collection.insert_one(packageInfo)
+            # else:
+            #     cloned = is_hash_in_csv('./node_modules/'+pkgName,
+            #                             'malicious_hash.csv')
+            #     if cloned == 1:
+            #         pkgFeatures.append('malicious')
+            #         finalPrediction = 'Malicious'
+            #         cloned = 0
+            #     # check clone
 
-            return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction)}), 200
+            # # insert the package info in db
+            # packageInfo = {
+            #     'name': pkgName,
+            #     'version': pkgVersion,
+            #     'features': pkgFeatures,
+            #     'prediction': prediction[0],
+            #     'reproducible': reproducible,
+            #     'cloned': cloned,
+            #     'finalPrediction': finalPrediction,
+            #     'totalVotes': 0,
+            #     'agreedVotes': 0,
+            # }
+            # # Store the data in the MongoDB collection
+            # collection.insert_one(packageInfo)
+
+            # return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction)}), 200
 
         # Return the received JSON object as a JSON response
 
@@ -812,7 +931,7 @@ def post():
 
 
 if __name__ == '__main__':
-    print('db',db)
+    print('db', db)
     app.run(host='0.0.0.0', port=5001)
 
 # import sys

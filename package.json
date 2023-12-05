@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "normalize-git-url": "3.0.2",
+    "zone.js": "~0.12.0",
     "normalize-git-url" : "^3.0.2"
   }
 }

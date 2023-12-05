@@ -16,3 +16,17 @@ exceljs,3.0.0,0,1,1,1,1,1,1,0,0,0,0,872989,3081,1,Unknown
 normalize-git-url,3.0.2,0,0,0,0,0,0,0,0,0,0,0,103,11,1,Unknown
 normalize-git-url,3.0.2,0,0,0,0,0,0,0,0,0,0,0,103,11,1,Unknown
 normalize-git-url,3.0.2,0,0,0,0,0,0,0,0,0,0,0,103,11,1,Unknown
+normalize-git-url,2.1.0,0,0,0,0,0,0,0,0,0,0,0,103,11,1,Unknown
+@fortawesome/free-solid-svg-icons,^6.3.0,0,1,0,1,0,0,0,1,0,0,0,2905,3923,1,Unknown
+@types/cytoscape,^3.19.9,0,0,0,0,0,0,0,0,0,0,0,189,15,1,Unknown
+bootstrap-icons,^1.10.3,0,1,0,1,1,0,0,0,0,0,0,103,2071,1,Unknown
+file-saver,^2.0.5,0,0,0,1,0,0,0,0,0,1,0,2707,19,1,Unknown
+ngx-extended-pdf-viewer,^17.4.3,1,1,1,1,1,1,1,0,0,0,0,1716542,6956,1,Unknown
+ngx-extended-pdf-viewer,18.1.6,1,1,1,1,1,1,1,0,0,0,0,1851438,6972,1,Unknown
+ngx-spinner,^15.0.1,0,0,0,0,0,0,0,0,0,0,0,69528,5818,1,Unknown
+ngx-toastr,^16.0.2,0,0,0,0,0,0,0,0,0,0,0,41580,5905,1,Unknown
+pdfjs-dist,~2.14.305,1,1,1,1,1,1,1,0,0,0,0,1464072,607,1,Unknown
+rxjs,~7.5.0,0,1,0,0,0,0,0,0,0,0,0,1137,2302,1,Unknown
+sweetalert2,^11.7.2,0,1,0,1,0,0,1,0,0,0,0,52403,90,1,Unknown
+tslib,^2.5.0,0,0,0,1,0,0,0,0,0,0,0,218,25,1,Unknown
+zone.js,~0.12.0,0,1,1,1,1,1,1,1,0,0,0,12636,303,1,Unknown
