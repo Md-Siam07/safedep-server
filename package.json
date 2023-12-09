@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "zone.js": "~0.12.0",
+    "angelintent": "1.0.8",
     "normalize-git-url" : "^3.0.2"
   }
 }

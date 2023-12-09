@@ -305,7 +305,8 @@ def num_of_files_in_the_package(directory_path: str) -> int:
     num_of_files = 0
 
     # Loop over all the files in the directory tree rooted at directory_path
-    for _, _, filenames in os.walk(directory_path):
+    for _, __, filenames in os.walk(directory_path):
+        print('filenames:', _, __, filenames)
         num_of_files += len(filenames)
 
     return num_of_files
@@ -457,5 +458,5 @@ def extract_features(root_dir: str, malicious: bool) -> None:
 
 
 if __name__ == '__main__':
-    benign_path = '../../benign/'
+    benign_path = '/Users/mdsiam/Desktop/Projects/8th Semester/SafeDep/AngelIntent/'
     extract_features(benign_path, malicious=False)

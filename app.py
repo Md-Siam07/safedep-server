@@ -340,7 +340,8 @@ def num_of_files_in_the_package(directory_path: str) -> int:
     num_of_files = 0
 
     # Loop over all the files in the directory tree rooted at directory_path
-    for _, _, filenames in os.walk(directory_path):
+    for _, __, filenames in os.walk(directory_path):
+        # print('num_of_files: ', _, __, num_of_files)
         num_of_files += len(filenames)
 
     return num_of_files
@@ -397,7 +398,7 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
 
             # Process the files or perform actions in the target folder
             for file in files:
-                print('file: ', file)
+                # print('file: ', file)
                 if (not file.endswith('.js') and not file.endswith('.json')) or file.endswith('.min.js'):
                     continue
                 file_path = os.path.join(root, file)
@@ -425,23 +426,23 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
                     parse_file(file_path)))   # 8
                 is_package_installation = max(is_package_installation, search_package_installation(
                     parse_file(file_path)))   # 9
-                print('etodur')
+                # print('etodur')
                 # print('visited packages: ', visited_packages)
                 # check if the package was already processed
                 if package_name not in visited_packages:
                     logging.info(f'package_name: {package_name}')
                     logging.debug(f"{package_name} was not visit yet")
                     index = root.find(package_name)
-                    print('index: ', index)
+                    # print('index: ', index)
                     logging.debug(f"dirname[:index]: {root[:index]}")
-                    print('root[:index]: ', root[:index])
+                    # print('root[:index]: ', root[:index])
                     is_geolocation = max(
                         is_geolocation, search_geolocation(root[:index]))  # 10
                     is_minified_code = max(
                         is_minified_code, search_minified_code(root[:index]))  # 11
                     is_has_no_content = search_packages_with_no_content(
                         root[:index])  # 12
-                    print('majhe')
+                    # print('majhe')
                     longest_line = longest_line_in_the_package(
                         root[:index])  # 13
                     # print('\n\n\nreturned longest_line: ', longest_line, '\n\n\n\n')
@@ -449,7 +450,7 @@ def extract_feature(directory, target_folder, package_name, package_version, lev
                         root[:index])  # 14
                     has_license = does_contain_license(root[:index])  # 15
                     visited_packages.add(package_name)
-                    print('shesh')
+                    # print('shesh')
                 else:
                     logging.debug(f"package_features: {package_features}")
                     is_geolocation = package_features[package_name][10]
@@ -583,7 +584,7 @@ def vote():
     vote = data['vote']
     # query the database for the package
     package = collection.find_one({"name": pkgName, "version": pkgVersion})
-    print('package: ', package)
+    # print('package: ', package)
     if package:
         # Package found, return the package details as JSON
         # return jsonify({"package_name": package["name"], "package_version": package["version"], "other_info": package["other_info"]})
@@ -609,7 +610,7 @@ def getDownloadCount(package_name):
     # Calculate the start and end dates for the week range
     end_date = datetime.now()
     for i in range(0, 52):
-        print('i: ', i)
+        # print('i: ', i)
         start_date = end_date - timedelta(days=7)
 
         # Format dates as strings in the 'YYYY-MM-DD' format
@@ -621,16 +622,16 @@ def getDownloadCount(package_name):
 
         try:
             # Make a GET request to the npm API
-            print(url)
+            # print(url)
             response = requests.get(url)
-            print(response)
+            # print(response)
 
             if response.status_code == 200:
                 # Parse the JSON response and extract the download count
                 data = response.json()
-                print('data: ', data)
+                # print('data: ', data)
                 download_count = data['downloads']
-                print('download count: ', download_count)
+                # print('download count: ', download_count)
                 yearly_download_count.append(
                     {'downloads': download_count, 'startDate': start_date_str, 'endDate': end_date_str})
                 # return jsonify({"package_name": package_name, "download_count": download_count})
@@ -658,14 +659,20 @@ def getPackageDetails():
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         if result.returncode == 0:
-            # Command ran successfully
+
             package_info = json.loads(result.stdout)
 
+            if (type(package_info) == list):
+                index = package_info.__len__() - 1
+                package_info = package_info[index]
+            # package_info = result.stdout
+            # print('package info: ', package_info)
             # get the package info from database
             package = collection.find_one(
                 {"name": package_name, "version": package_version})
-            print('package: ', package)
+            # print('package: ', package)
             if package:
+                # print(type(package_info))
                 # Package found, return the package details as JSON
                 package_info['prediction'] = package['prediction']
                 package_info['reproducible'] = package['reproducible']
@@ -674,7 +681,7 @@ def getPackageDetails():
                 package_info['finalPrediction'] = package['finalPrediction']
                 package_info['totalVotes'] = package['totalVotes']
                 package_info['agreedVotes'] = package['agreedVotes']
-                return jsonify(package_info)
+                return jsonify(package_info), 200
                 # package_info['download_count'] = getDownloadCount(package_name)
 
             else:
@@ -686,7 +693,7 @@ def getPackageDetails():
                 package_info['finalPrediction'] = package['finalPrediction']
                 package_info['totalVotes'] = package['totalVotes']
                 package_info['agreedVotes'] = package['agreedVotes']
-                return jsonify(package_info)
+                return package
         else:
             # Command failed
             return jsonify({"error": "Failed to retrieve package information"}, 500)
@@ -702,14 +709,15 @@ def posthelper(pkgName, pkgVersion):
 
         if pkg:
             # Package found, return the package details as JSON
-            print('package found: ', pkg)
+            # print('package found: ', pkg)
             # return jsonify(pkg_serializable), 200
-            return jsonify({'_id': str(pkg['_id']), 'prediction': str(pkg['prediction']), 'features': str(pkg['features']), 'reproducible': str(pkg['reproducible']), 'cloned': str(pkg['cloned']), 'finalPrediction': str(pkg['finalPrediction'])}), 200
+            return jsonify({'_id': str(pkg['_id']), 'prediction': str(pkg['prediction']), 'features': str(pkg['features']), 'reproducible': str(pkg['reproducible']), 'cloned': str(pkg['cloned']), 'finalPrediction': str(pkg['finalPrediction']),
+                            'totalVotes': pkg['totalVotes'], 'agreedVotes': pkg['agreedVotes']}), 200
 
          # Call the reproduce-package.sh script using subprocess
         cmd = ['./utils/reproducer/build-package.sh',
                pkgName, pkgVersion, '.', 'node_modules']
-        print(cmd)
+        # print(cmd)
         result = subprocess.Popen(cmd)
         result.wait()
         # print(cmd)
@@ -733,28 +741,29 @@ def posthelper(pkgName, pkgVersion):
         pkgFeatures = extract_feature(
             './node_modules', './node_modules/'+pkgName, pkgName, pkgVersion, 0)[pkgName]
         # traverse the node_modules folder and find the folder of pkgName
-        print('pkgFeatures: ', pkgFeatures)
+        # print('pkgFeatures: ', pkgFeatures)
         # remove the first two elements from the list
         pkgFeatures = pkgFeatures[2:]
         # remove the last element from the list
         pkgFeatures = pkgFeatures[:-1]
+        print('pkgFeatures: ', pkgFeatures)
         prediction = predictPackage(pkgFeatures)
-        print('prediction: ', prediction)
+        # print('prediction: ', prediction)
         reproducible = 0
         cloned = 0
         finalPrediction = prediction[0]
-        print('finalPrediction: ', finalPrediction)
+        # print('finalPrediction: ', finalPrediction)
         if prediction[0] == 'Malicious' or prediction[0] == 'malicious':
             # check reproducibility
             cmd = ['./utils/reproducer/reproduce-package.sh',
                    pkgName + '@' + pkgVersion, './node_modules/']
             result = subprocess.run(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True)
-            print(result.returncode)
-            print(result.stdout)
-            print(result.stderr)
+            # print(result.returncode)
+            # print(result.stdout)
+            # print(result.stderr)
             if result.returncode == 0:
-                pkgFeatures.append('benign')
+                # pkgFeatures.append('benign')
                 finalPrediction = 'Benign'
                 reproducible = 1
 
@@ -762,7 +771,7 @@ def posthelper(pkgName, pkgVersion):
             cloned = is_hash_in_csv('./node_modules/'+pkgName,
                                     'malicious_hash.csv')
             if cloned == 1:
-                pkgFeatures.append('malicious')
+                # pkgFeatures.append('malicious')
                 finalPrediction = 'Malicious'
                 cloned = 0
                 # check clone
@@ -782,7 +791,7 @@ def posthelper(pkgName, pkgVersion):
         # Store the data in the MongoDB collection
         collection.insert_one(packageInfo)
 
-        return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction)}), 200
+        return jsonify({'prediction': str(prediction[0]), 'features': str(pkgFeatures), 'reproducible': str(reproducible), 'cloned': str(cloned), 'finalPrediction': str(finalPrediction), 'totalVotes': str(0), 'agreedVotes': str(0)}), 200
 
         # Return the received JSON object as a JSON response
 
@@ -831,8 +840,8 @@ def post():
             #         1, 0, 0, 1, 1, 1, 1, 1, 1]}), 200
             pkgName = package.split(':')[0]
             pkgVersion = package.split(':')[1]
-            print('pkgName: ', pkgName, 'pkgVersion: ', pkgVersion)
-            posthelper(pkgName, pkgVersion)
+            # print('pkgName: ', pkgName, 'pkgVersion: ', pkgVersion)
+            responnse = posthelper(pkgName, pkgVersion)
 
             # check if a package with the same name and version already exists in the database
             # pkg = collection.find_one({"name": pkgName, "version": pkgVersion})
@@ -925,13 +934,13 @@ def post():
         # create a package.json file in ./reproducer
         # run npm install in ./reproducer
 
-        return jsonify(data), 200
+        return responnse
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
-    print('db', db)
+    # print('db', db)
     app.run(host='0.0.0.0', port=5001)
 
 # import sys
