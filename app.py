@@ -37,7 +37,7 @@ num_of_files = 0
 has_license = 0
 
 # MongoDB connection URI
-MONGO_URI = "mongodb+srv://bsse1104:mayask4545@cluster0.x2yb5bm.mongodb.net/safedep?retryWrites=true&w=majority"
+MONGO_URI = ""
 NPM_API_URL = 'https://api.npmjs.org/downloads/point'
 
 # Create a MongoClient using the connection URI
